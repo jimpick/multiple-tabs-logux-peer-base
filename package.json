@@ -1,0 +1,18 @@
+{
+  "name": "multiple-iframes-logux",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Jim Pick (@jimpick)",
+  "license": "MIT",
+  "dependencies": {
+    "lit-html": "^1.0.0",
+    "logux-client": "^0.2.10",
+    "logux-core": "^0.2.2",
+    "logux-server": "^0.2.9"
+  }
+}
