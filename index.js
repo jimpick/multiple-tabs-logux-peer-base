@@ -2,10 +2,15 @@ import classes from './index.css'
 import { html, render } from 'lit-html'
 import CrossTabClient from 'logux-client/cross-tab-client'
 
+const fakeServer = {
+  on: () => {},
+  connect: () => {}  
+}
+
 var logux = new CrossTabClient({
   credentials: '',
   subprotocol: '1.0.0',
-  server: 'wss://127.0.0.1:1337',
+  server: fakeServer,
   userId: 1
 })
 logux.start()
@@ -17,6 +22,7 @@ function r () {
     <h1>Logux Test</>
     <p>${new Date().toLocaleString()}</p>
     <p>ID: ${logux.id}</p>
+    <p>Role: ${logux.role}</p>
     <div>
       <button @click=${click}>Log me!</button>
     </div>

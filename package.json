@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "parcel index.html",
+    "build": "parcel build index.html"
   },
   "keywords": [],
   "author": "Jim Pick (@jimpick)",
@@ -14,5 +15,8 @@
     "logux-client": "^0.2.10",
     "logux-core": "^0.2.2",
     "logux-server": "^0.2.9"
+  },
+  "devDependencies": {
+    "parcel-bundler": "^1.11.0"
   }
 }
