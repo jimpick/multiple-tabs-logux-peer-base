@@ -1,22 +1,27 @@
 {
-  "name": "multiple-tabs-logux",
+  "name": "multiple-tabs-logux-peer-base",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "parcel index.html",
+    "dev": "parcel --no-hmr index.html",
     "build": "parcel build index.html"
   },
   "keywords": [],
   "author": "Jim Pick (@jimpick)",
   "license": "MIT",
   "dependencies": {
+    "delay": "^4.1.0",
     "lit-html": "^1.0.0",
     "logux-client": "^0.2.10",
     "logux-core": "^0.2.2",
-    "logux-server": "^0.2.9"
+    "logux-server": "^0.2.9",
+    "nanostate": "^1.2.1"
   },
   "devDependencies": {
     "parcel-bundler": "^1.11.0"
-  }
+  },
+  "browserslist": [
+    "last 1 Chrome version"
+  ]
 }
