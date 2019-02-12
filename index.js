@@ -31,7 +31,12 @@ const states = {
   }
 }
 const machine = nanostate('off', states)
-Object.keys(states).forEach(state => machine.on(state, r))
+Object.keys(states).forEach(state => {
+  machine.on(state, () => {
+    console.log('New State:', state)
+    r()
+  })
+})
 
 machine.on('starting', async () => {
   await delay(3000)
@@ -52,7 +57,6 @@ const fakeServer = {
 class LoguxWrapper {
   constructor () {
     this.startLogux()
-    this.addHandler = this.addHandler.bind(this)
   }
 
   startLogux () {
@@ -67,12 +71,15 @@ class LoguxWrapper {
       { type: 'logux/subscribe', channel: 'clicks' },
       { sync: true }
     )
-    this.unbindAddListener = this.logux.on('add', this.addHandler)
+    this.unbindAddListener = this.logux.on('add', this.addHandler.bind(this))
+    this.unbindRoleListener = this.logux.on('role', this.roleHandler.bind(this))
   }
 
   async restart () {
     if (!this.logux) return
-    this.unbindAddListener()  
+    machine.emit('notLeader')
+    this.unbindAddListener()
+    this.unbindRoleListener()
     try {
       this.logux.destroy()
     } catch (err) {
@@ -89,20 +96,21 @@ class LoguxWrapper {
       r()
     }
   }
+
+  roleHandler () {
+    if (!this.logux) return
+    const { role } = this.logux
+    console.log('New role:', role)
+    if (role === 'leader') {
+      machine.emit('leader')
+    } else {
+      machine.emit('notLeader')
+    }
+  }
+
 }
 
 const wrapper = new LoguxWrapper()
-
-wrapper.logux.on('role', () => {
-  if (!wrapper.logux) return
-  const { role } = wrapper.logux
-  console.log('New role:', role)
-  if (role === 'leader') {
-    machine.emit('leader')
-  } else {
-    machine.emit('notLeader')
-  }
-})
 
 const events = []
 
