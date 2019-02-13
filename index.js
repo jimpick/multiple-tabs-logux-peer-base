@@ -138,7 +138,8 @@ class PeerBaseContainer extends EventEmitter {
         ]
       }
     })
-    this.app.start()
+    await this.app.start()
+    this.id = (await this.app.ipfs.id()).id
     this.collaboration = await this.app.collaborate('lights', 'rwlwwset')
     this.collaboration.on('state changed', this.stateChanged)
     this.stateChanged()
@@ -205,6 +206,12 @@ function r () {
     <div>${new Date().toLocaleString()}</div>
     <div>ID: ${logux && logux.id}</div>
     <div>Role: ${logux && logux.role}</div>
+    ${
+      logux && logux.role === 'leader' ?
+      html`<div>Peer ID: ${peerBaseContainer.id}</div>` :
+      ''
+    }
+    </div>
     <div>State: ${machine.state}</div>
     <div>
       <button @click=${click}>Log me!</button>
