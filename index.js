@@ -119,6 +119,10 @@ class LoguxWrapper extends EventEmitter {
       console.log('Jim requestPin received', action.cid)
       this.emit('requestPin', action.cid)
     }
+    if (action.type === 'requestRemove' && this.logux.role === 'leader') {
+      console.log('Jim requestRemove received', action.cid)
+      this.emit('requestRemove', action.cid)
+    }
   }
 
   roleHandler () {
@@ -229,6 +233,13 @@ class PeerBaseContainer extends EventEmitter {
     }
     this.collaboration.shared.add(Date.now(), cid)
   }
+
+  remove (cid) {
+    if (!this.collaboration) {
+      throw new Error('Requested remove, but no collaboration')
+    }
+    this.collaboration.shared.remove(Date.now(), cid)
+  }
 }
 
 const peerBaseContainer = new PeerBaseContainer()
@@ -262,6 +273,10 @@ machine.on('stopping', async () => {
 wrapper.on('requestPin', cid => {
   peerBaseContainer.pin(cid)
 })
+wrapper.on('requestRemove', cid => {
+  peerBaseContainer.remove(cid)
+})
+
 
 const events = []
 
@@ -270,12 +285,21 @@ function r () {
   const pendingPinsEl = pendingPins ?
     (
       html`<ul>
-        ${pendingPins.map(cid => html`<li>${cid}</li>`)}
+        ${pendingPins.map(cid => html`
+          <li>
+            ${cid}
+            [<a class="remove" @click=${remove} href="#">x</a>]
+          </li>
+        `)}
       </ul>`
     ) :
     html`<div>Loading...</div>`
   const page = html`
     <h1>Logux + PeerBase Test</h1>
+    <div>
+      Origin:
+      <a href="${location.origin}" target="_blank">${location.origin}</a>
+    </div>
     <div>${new Date().toLocaleString()}</div>
     <div>ID: ${logux && logux.id}</div>
     <div>Role: ${logux && logux.role}</div>
@@ -291,7 +315,7 @@ function r () {
       ${logux && logux.role === 'leader' ?
         html`<button @click=${resign}>Resign</button>` : ''}
     </div>
-    <h3>Pending Pins</h3>
+    <h3>Pending Pin Requests</h3>
     ${pendingPinsEl}
     <h3>Log</h3>
     ${events.map(event => html`<div>${
@@ -314,7 +338,25 @@ function r () {
   async function resign () {
     console.log('Resign')
     await wrapper.restart()
-  }    
+  }
+
+  async function remove (e) {
+    const cid = e.target.parentElement.firstChild.nextSibling.data
+    console.log('Remove', cid)
+    if (!logux) return
+    logux.log.add(
+      {
+        type: 'requestRemove',
+        cid
+      },
+      {
+        reasons: ['update'],
+        channels: ['peerBase'],
+        sync: true
+      }
+    )
+    e.preventDefault()
+  }
 }
 
 r()
