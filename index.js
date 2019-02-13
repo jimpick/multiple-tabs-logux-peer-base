@@ -187,6 +187,9 @@ window.addEventListener('message', e => {
         sync: true
       }
     )
+    if (!parentPort) {
+      throw new Error('Parent iframe not connected')
+    }
     parentPort.postMessage({
       type: 'requestPendingReceived',
       cid

@@ -1,9 +1,13 @@
 const channel = new MessageChannel()
-const iframe = document.querySelector('iframe')
 const button = document.querySelector('button')
 const cidInput = document.querySelector('#cid')
 const output = document.querySelector('.output')
 let lastCid
+const iframe = document.createElement('iframe')
+// iframe.src = 'https://localhost:1234'
+// iframe.src='https://bafybeiekic2eko3nrouq62xpmw76iffexlu5wz4ynmkbqxxp4qmjusec4u.lunet.v6z.me/'
+iframe.src='https://dist-dxkaqylqxx.now.sh'
+document.body.appendChild(iframe)
 iframe.addEventListener('load', () => {
   channel.port1.onmessage = e => {
     console.log('Jim from iframe', e.data)
