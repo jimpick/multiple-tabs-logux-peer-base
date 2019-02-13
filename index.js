@@ -1,3 +1,4 @@
+import 'setimmediate' // Needed for Firefox
 import classes from './index.css'
 import { html, render } from 'lit-html'
 import CrossTabClient from 'logux-client/cross-tab-client'
