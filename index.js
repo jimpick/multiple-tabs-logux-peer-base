@@ -99,6 +99,20 @@ class LoguxWrapper {
       events.push({ ...meta, lights })
       r()
     }
+    if (action.type === 'requestUpdate' && this.logux.role === 'leader') {
+      console.log('Jim requestUpdate received')
+      this.logux.log.add(
+        {
+          type: 'updateSet',
+          lights: [...lights.toJS().values()],
+        },
+        {
+          reasons: ['update'],
+          channels: ['peerBase'],
+          sync: true
+        }
+      )
+    }
   }
 
   roleHandler () {
@@ -114,6 +128,17 @@ class LoguxWrapper {
 }
 
 const wrapper = new LoguxWrapper()
+if (wrapper.logux.role === 'follower') {
+  console.log('Requesting update...')
+  wrapper.logux.log.add(
+    { type: 'requestUpdate' },
+    {
+      reasons: ['update'],
+      channels: ['peerBase'],
+      sync: true
+    }
+  )
+}
 
 class PeerBaseContainer extends EventEmitter {
   constructor () {
