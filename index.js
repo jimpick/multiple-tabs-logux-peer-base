@@ -6,7 +6,7 @@ import nanostate from 'nanostate'
 import delay from 'delay'
 import PeerBase from 'peer-base'
 import EventEmitter from 'events'
-import { Set } from 'immutable'
+import { OrderedSet } from 'immutable'
 
 const states = {
   off: {
@@ -42,15 +42,16 @@ Object.keys(states).forEach(state => {
   })
 })
 
-let lights
+let pendingPins
 
 const fakeServer = {
   on: () => {},
   connect: () => {}  
 }
 
-class LoguxWrapper {
+class LoguxWrapper extends EventEmitter {
   constructor () {
+    super()
     this.startLogux()
   }
 
@@ -95,9 +96,9 @@ class LoguxWrapper {
       r()
     }
     if (action.type === 'updateSet') {
-      lights = new Set(action.lights)
-      console.log('Jim updateSet', [...lights.toJS().values()])
-      events.push({ ...meta, lights })
+      pendingPins = new OrderedSet(action.pendingPins.sort())
+      console.log('Jim updateSet', [...pendingPins.toJS().values()])
+      events.push({ ...meta, pendingPins })
       r()
     }
     if (action.type === 'requestUpdate' && this.logux.role === 'leader') {
@@ -105,7 +106,7 @@ class LoguxWrapper {
       this.logux.log.add(
         {
           type: 'updateSet',
-          lights: [...lights.toJS().values()],
+          pendingPins: [...pendingPins.toJS().values()],
         },
         {
           reasons: ['update'],
@@ -113,6 +114,10 @@ class LoguxWrapper {
           sync: true
         }
       )
+    }
+    if (action.type === 'requestPin' && this.logux.role === 'leader') {
+      console.log('Jim requestPin received', action.cid)
+      this.emit('requestPin', action.cid)
     }
   }
 
@@ -141,6 +146,37 @@ if (wrapper.logux.role === 'follower') {
   )
 }
 
+let parentPort
+
+window.addEventListener('message', e => {
+  const { data } = e
+  if (data.type === 'setup') {
+    console.log('Parent iframe connected')
+    e.ports[0].postMessage('Hi')
+    parentPort = e.ports[0]
+    parentPort.postMessage({ type: 'setupAck' })
+  }
+  if (data.type === 'requestPin') {
+    const { cid } = data
+    console.log('Parent iframe requested to pin', cid)
+    wrapper.logux.log.add(
+      {
+        type: 'requestPin',
+        cid
+      },
+      {
+        reasons: ['update'],
+        channels: ['peerBase'],
+        sync: true
+      }
+    )
+    parentPort.postMessage({
+      type: 'requestPinReceived',
+      cid
+    })
+  }
+})
+
 class PeerBaseContainer extends EventEmitter {
   constructor () {
     super()
@@ -149,7 +185,7 @@ class PeerBaseContainer extends EventEmitter {
   async start () {
     if (this.app || this.collaboration) return
     console.log('Starting peer-base...')  
-    this.app = PeerBase('lights-demo-2', {
+    this.app = PeerBase('simple-pinner-demo-1', {
       ipfs: {
         swarm: ['/dns4/rendezvous.jimpick.com/tcp/9091/wss/p2p-websocket-star'],
         bootstrap: [
@@ -166,7 +202,7 @@ class PeerBaseContainer extends EventEmitter {
     })
     await this.app.start()
     this.id = (await this.app.ipfs.id()).id
-    this.collaboration = await this.app.collaborate('lights', 'rwlwwset')
+    this.collaboration = await this.app.collaborate('pendingPins', 'rwlwwset')
     this.collaboration.on('state changed', this.stateChanged)
     this.stateChanged()
     console.log('Started')
@@ -186,6 +222,13 @@ class PeerBaseContainer extends EventEmitter {
     console.log('Jim state changed', this.collaboration.shared.value())
     this.emit('state changed', this.collaboration.shared.value())
   }
+
+  pin (cid) {
+    if (!this.collaboration) {
+      throw new Error('Requested pin, but no collaboration')
+    }
+    this.collaboration.shared.add(Date.now(), cid)
+  }
 }
 
 const peerBaseContainer = new PeerBaseContainer()
@@ -196,7 +239,7 @@ peerBaseContainer.on('state changed', value => {
   logux.log.add(
     {
       type: 'updateSet',
-      lights: [...value.values()],
+      pendingPins: [...value.values()],
     },
     {
       reasons: ['update'],
@@ -216,14 +259,18 @@ machine.on('stopping', async () => {
   machine.emit('stopped')
 })
 
+wrapper.on('requestPin', cid => {
+  peerBaseContainer.pin(cid)
+})
+
 const events = []
 
 function r () {
   const { logux } = wrapper
-  const lightsEl = lights ?
+  const pendingPinsEl = pendingPins ?
     (
       html`<ul>
-        ${lights.map(light => html`<li>${light}</li>`)}
+        ${pendingPins.map(cid => html`<li>${cid}</li>`)}
       </ul>`
     ) :
     html`<div>Loading...</div>`
@@ -244,13 +291,13 @@ function r () {
       ${logux && logux.role === 'leader' ?
         html`<button @click=${resign}>Resign</button>` : ''}
     </div>
-    <h3>Lights</h3>
-    ${lightsEl}
+    <h3>Pending Pins</h3>
+    ${pendingPinsEl}
     <h3>Log</h3>
     ${events.map(event => html`<div>${
       event.id[1] + ' ' + event.added + ' ' + event.time + ': ' +
       (event.click ? '[click]' : '') +
-      (event.lights ? event.lights.toJS().join(' ') : '')
+      (event.pendingPins ? event.pendingPins.toJS().join(' ') : '')
     }</div>`)}
   `
   render(page, document.body)

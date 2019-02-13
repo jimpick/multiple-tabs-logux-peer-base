@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "parcel --no-hmr index.html",
+    "dev-ssl": "parcel --no-hmr --key=key.pem --cert=cert.pem index.html",
     "build": "parcel build index.html"
   },
   "keywords": [],

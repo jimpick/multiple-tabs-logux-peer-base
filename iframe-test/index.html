@@ -6,11 +6,25 @@
         width: 90vw;
         height: 80vh;
       }
+      .inputs, .output {
+        margin-bottom: 1rem;
+      }
+      input {
+        width: 50rem;
+        max-width: 80%;
+      }
     </style>
   </head>
   <body>
-    <h1>IFrame Logux Test</h1>
-    <iframe src="https://bafybeibkp7t3b2i3kj4hokz2lsxbljsl2xqwowxvzn746jqpc5rn7sj5u4.lunet.v6z.me/">
-    <!-- <iframe src="http://localhost:1234/"> -->
+    <h1>IFrame Logux Pinning Test</h1>
+    <div class="inputs">
+      <label>CID:</label>
+      <input id="cid">
+      <button>Pin</button>
+    </div>
+    <div class="output"></div>
+    <!-- <iframe src="https://bafybeibkp7t3b2i3kj4hokz2lsxbljsl2xqwowxvzn746jqpc5rn7sj5u4.lunet.v6z.me/"> -->
+    <iframe src="https://localhost:1234/"></iframe>
+    <script src="index.js"></script>
   </body>
 </html>
