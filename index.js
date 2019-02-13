@@ -191,6 +191,17 @@ window.addEventListener('message', e => {
       type: 'requestPendingReceived',
       cid
     })
+    wrapper.on('updated', checkIfPinned)
+
+    function checkIfPinned () {
+      if (pinnedPins.has(cid)) {
+        wrapper.removeListener('updated', checkIfPinned)
+        parentPort.postMessage({
+          type: 'pinned',
+          cid
+        })
+      }
+    }
   }
 })
 

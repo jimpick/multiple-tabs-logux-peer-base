@@ -12,6 +12,10 @@ iframe.addEventListener('load', () => {
       output.innerHTML = 'Pinned: ' + lastCid + ' (pending)'
       cidInput.value = ''
     }
+    if (e.data.type === 'pinned' && e.data.cid === lastCid) {
+      output.innerHTML = 'Pinned: ' + lastCid + ' ✓'
+      cidInput.value = ''
+    }
   }
   iframe.contentWindow.postMessage({ type: 'setup' }, '*', [channel.port2])
   button.addEventListener('click', submit)
