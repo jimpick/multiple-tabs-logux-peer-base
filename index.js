@@ -38,11 +38,12 @@ const machine = nanostate('off', states)
 Object.keys(states).forEach(state => {
   machine.on(state, () => {
     console.log('New State:', state)
-    r()
+    rerender()
   })
 })
 
 let pendingPins
+let pinnedPins
 
 const fakeServer = {
   on: () => {},
@@ -93,13 +94,20 @@ class LoguxWrapper extends EventEmitter {
   addHandler (action, meta) {
     if (action.type === 'click') {
       events.push({ ...meta, click: true })
-      r()
+      rerender()
     }
     if (action.type === 'updateSet') {
-      pendingPins = new OrderedSet(action.pendingPins.sort())
-      console.log('Jim updateSet', [...pendingPins.toJS().values()])
-      events.push({ ...meta, pendingPins })
-      r()
+      if (action.pendingPins) {
+        pendingPins = new OrderedSet(action.pendingPins.sort())
+        console.log('Jim updateSet pending', [...pendingPins.toJS().values()])
+        events.push({ ...meta, pendingPins })
+      }
+      if (action.pinnedPins) {
+        pinnedPins = new OrderedSet(action.pinnedPins.sort())
+        console.log('Jim updateSet pinned', [...pinnedPins.toJS().values()])
+        events.push({ ...meta, pinnedPins })
+      }
+      this.emit('updated')
     }
     if (action.type === 'requestUpdate' && this.logux.role === 'leader') {
       console.log('Jim requestUpdate received')
@@ -107,6 +115,7 @@ class LoguxWrapper extends EventEmitter {
         {
           type: 'updateSet',
           pendingPins: [...pendingPins.toJS().values()],
+          pinnedPins: [...pinnedPins.toJS().values()]
         },
         {
           reasons: ['update'],
@@ -115,13 +124,17 @@ class LoguxWrapper extends EventEmitter {
         }
       )
     }
-    if (action.type === 'requestPin' && this.logux.role === 'leader') {
-      console.log('Jim requestPin received', action.cid)
-      this.emit('requestPin', action.cid)
+    if (action.type === 'requestPending' && this.logux.role === 'leader') {
+      console.log('Jim requestPending received', action.cid)
+      this.emit('requestPending', action.cid)
     }
     if (action.type === 'requestRemove' && this.logux.role === 'leader') {
       console.log('Jim requestRemove received', action.cid)
       this.emit('requestRemove', action.cid)
+    }
+    if (action.type === 'requestPin' && this.logux.role === 'leader') {
+      console.log('Jim requestPin received', action.cid)
+      this.emit('requestPin', action.cid)
     }
   }
 
@@ -138,6 +151,7 @@ class LoguxWrapper extends EventEmitter {
 }
 
 const wrapper = new LoguxWrapper()
+wrapper.on('updated', rerender)
 if (wrapper.logux.role === 'follower') {
   console.log('Requesting update...')
   wrapper.logux.log.add(
@@ -156,16 +170,15 @@ window.addEventListener('message', e => {
   const { data } = e
   if (data.type === 'setup') {
     console.log('Parent iframe connected')
-    e.ports[0].postMessage('Hi')
     parentPort = e.ports[0]
     parentPort.postMessage({ type: 'setupAck' })
   }
-  if (data.type === 'requestPin') {
+  if (data.type === 'requestPending') {
     const { cid } = data
     console.log('Parent iframe requested to pin', cid)
     wrapper.logux.log.add(
       {
-        type: 'requestPin',
+        type: 'requestPending',
         cid
       },
       {
@@ -175,7 +188,7 @@ window.addEventListener('message', e => {
       }
     )
     parentPort.postMessage({
-      type: 'requestPinReceived',
+      type: 'requestPendingReceived',
       cid
     })
   }
@@ -184,7 +197,8 @@ window.addEventListener('message', e => {
 class PeerBaseContainer extends EventEmitter {
   constructor () {
     super()
-    this.stateChanged = this.stateChanged.bind(this)
+    this.stateChangedPending = this.stateChangedPending.bind(this)
+    this.stateChangedPinned = this.stateChangedPinned.bind(this)
   }
   async start () {
     if (this.app || this.collaboration) return
@@ -207,31 +221,49 @@ class PeerBaseContainer extends EventEmitter {
     await this.app.start()
     this.id = (await this.app.ipfs.id()).id
     this.collaboration = await this.app.collaborate('pendingPins', 'rwlwwset')
-    this.collaboration.on('state changed', this.stateChanged)
-    this.stateChanged()
+    this.collaboration.on('state changed', this.stateChangedPending)
+    this.pinnedPins = await this.collaboration.sub('pinnedPins', 'rwlwwset')
+    this.pinnedPins.on('state changed', this.stateChangedPinned)
+    this.stateChangedPending()
+    this.stateChangedPinned()
     console.log('Started')
   }
 
   async stop () {
     console.log('Stopping peer-base...')
-    this.collaboration.removeListener('state changed', this.stateChanged)
+    this.collaboration.removeListener('state changed', this.stateChangedPending)
+    this.pinnedPins.removeListener('state changed', this.stateChangedPinned)
     await this.collaboration.stop()
     this.collaboration = null
+    this.pinnedPins = null
     await this.app.stop()
     this.app = null
     console.log('Stopped')
   }
 
-  stateChanged () {
-    console.log('Jim state changed', this.collaboration.shared.value())
-    this.emit('state changed', this.collaboration.shared.value())
+  stateChangedPending () {
+    console.log('Jim state changed pending', this.collaboration.shared.value())
+    this.emit('state changed pending', this.collaboration.shared.value())
+  }
+
+  stateChangedPinned () {
+    console.log('Jim state changed pinned', this.pinnedPins.shared.value())
+    this.emit('state changed pinned', this.pinnedPins.shared.value())
+  }
+
+  pinPending (cid) {
+    if (!this.collaboration) {
+      throw new Error('Requested pinPending, but no collaboration')
+    }
+    this.collaboration.shared.add(Date.now(), cid)
   }
 
   pin (cid) {
     if (!this.collaboration) {
       throw new Error('Requested pin, but no collaboration')
     }
-    this.collaboration.shared.add(Date.now(), cid)
+    this.pinnedPins.shared.add(Date.now(), cid)
+    this.collaboration.shared.remove(Date.now(), cid)
   }
 
   remove (cid) {
@@ -239,18 +271,36 @@ class PeerBaseContainer extends EventEmitter {
       throw new Error('Requested remove, but no collaboration')
     }
     this.collaboration.shared.remove(Date.now(), cid)
+    this.pinnedPins.shared.remove(Date.now(), cid)
   }
 }
 
 const peerBaseContainer = new PeerBaseContainer()
-peerBaseContainer.on('state changed', value => {
-  console.log('Jim2 state changed', value)
+peerBaseContainer.on('state changed pending', value => {
+  console.log('Jim2 state changed pending', value)
   const { logux } = wrapper
   if (!logux) return
   logux.log.add(
     {
       type: 'updateSet',
       pendingPins: [...value.values()],
+    },
+    {
+      reasons: ['update'],
+      channels: ['peerBase'],
+      sync: true
+    }
+  )
+})
+
+peerBaseContainer.on('state changed pinned', value => {
+  console.log('Jim2 state changed pinned', value)
+  const { logux } = wrapper
+  if (!logux) return
+  logux.log.add(
+    {
+      type: 'updateSet',
+      pinnedPins: [...value.values()],
     },
     {
       reasons: ['update'],
@@ -270,9 +320,14 @@ machine.on('stopping', async () => {
   machine.emit('stopped')
 })
 
+wrapper.on('requestPending', cid => {
+  peerBaseContainer.pinPending(cid)
+})
+
 wrapper.on('requestPin', cid => {
   peerBaseContainer.pin(cid)
 })
+
 wrapper.on('requestRemove', cid => {
   peerBaseContainer.remove(cid)
 })
@@ -280,12 +335,25 @@ wrapper.on('requestRemove', cid => {
 
 const events = []
 
-function r () {
+function rerender () {
   const { logux } = wrapper
   const pendingPinsEl = pendingPins ?
     (
       html`<ul>
         ${pendingPins.map(cid => html`
+          <li>
+            ${cid}
+            [<a class="remove" @click=${pin} href="#">pin</a>]
+            [<a class="remove" @click=${remove} href="#">x</a>]
+          </li>
+        `)}
+      </ul>`
+    ) :
+    html`<div>Loading...</div>`
+  const pinnedPinsEl = pinnedPins ?
+    (
+      html`<ul>
+        ${pinnedPins.map(cid => html`
           <li>
             ${cid}
             [<a class="remove" @click=${remove} href="#">x</a>]
@@ -317,11 +385,22 @@ function r () {
     </div>
     <h3>Pending Pin Requests</h3>
     ${pendingPinsEl}
+    <h3>Pinned CIDs</h3>
+    ${pinnedPinsEl}
     <h3>Log</h3>
     ${events.map(event => html`<div>${
       event.id[1] + ' ' + event.added + ' ' + event.time + ': ' +
       (event.click ? '[click]' : '') +
-      (event.pendingPins ? event.pendingPins.toJS().join(' ') : '')
+      (
+        event.pendingPins ?
+        'Pending: ' + event.pendingPins.toJS().join(' ') :
+        ''
+      ) + 
+      (
+        event.pinnedPins ?
+        'Pinned:' + event.pinnedPins.toJS().join(' ') :
+        ''
+      )
     }</div>`)}
   `
   render(page, document.body)
@@ -340,7 +419,7 @@ function r () {
     await wrapper.restart()
   }
 
-  async function remove (e) {
+  function remove (e) {
     const cid = e.target.parentElement.firstChild.nextSibling.data
     console.log('Remove', cid)
     if (!logux) return
@@ -357,8 +436,26 @@ function r () {
     )
     e.preventDefault()
   }
+
+  function pin (e) {
+    const cid = e.target.parentElement.firstChild.nextSibling.data
+    console.log('Pin', cid)
+    if (!logux) return
+    logux.log.add(
+      {
+        type: 'requestPin',
+        cid
+      },
+      {
+        reasons: ['update'],
+        channels: ['peerBase'],
+        sync: true
+      }
+    )
+    e.preventDefault()
+  }
 }
 
-r()
-setInterval(r, 1000)
+rerender()
+setInterval(rerender, 1000)
 
