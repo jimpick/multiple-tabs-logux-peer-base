@@ -1,7 +1,6 @@
 const util = require('util')
 const execFile = util.promisify(require('child_process').execFile)
 const PeerBase = require('peer-base')
-const { debounce } = require('lodash')
 
 async function run () {
   const app = PeerBase('simple-pinner-demo-1', {
@@ -23,17 +22,8 @@ async function run () {
 
   const pendingCollab = await app.collaborate('pendingPins', 'rwlwwset')
   const pinnedCollab = await pendingCollab.sub('pinnedPins', 'rwlwwset')
-  // const debouncedStateChangedPending = debounce(stateChangedPending, 2000)
-  // collaboration.on('state changed', debouncedStateChangedPending)
-  // collaboration.on('state changed', stateChangedPending)
 
   setTimeout(check, 1000)
-
-  /*
-  function stateChangedPending () {
-    console.log('Pending:', collaboration.shared.value())
-  }
-  */
 
   async function check () {
     const pending = new Set([...pendingCollab.shared.value()])

@@ -15,7 +15,6 @@
     "delay": "^4.1.0",
     "immutable": "^4.0.0-rc.12",
     "lit-html": "^1.0.0",
-    "lodash": "^4.17.11",
     "logux-client": "^0.2.10",
     "logux-core": "^0.2.2",
     "logux-server": "^0.2.9",
